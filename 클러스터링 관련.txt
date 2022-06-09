@@ -1,0 +1,168 @@
+[Apache]
+
+1. mod-jk.conf
+
+ex)
+JkMount /app/* admincluster
+JkMount /* runtimecluster
+
+2. workers.properties
+ex)
+# -------------------
+worker.list=admincluster,runtimecluster,status
+# -------------------
+worker.template.type=ajp13
+worker.template.ping_mode=A
+worker.template.socket_connect_timeout=10000
+worker.template.connection_pool_size=15
+
+# -------------------
+#admin01 WAS Server
+# -------------------
+worker.admin01.host=192.168.219.130
+worker.admin01.port=8009
+worker.admin01.reference=worker.template
+
+# -------------------
+# admin02 WAS Server
+# -------------------
+worker.admin02.host=192.168.219.203
+worker.admin02.port=8009
+worker.admin02.reference=worker.template
+
+
+# runtime01 WAS Server
+# -------------------
+worker.runtime01.host=192.168.219.130
+worker.runtime01.port=8109
+worker.runtime01.reference=worker.template
+
+# -------------------
+# runtime02 WAS Server
+# -------------------
+worker.runtime02.host=192.168.219.203
+worker.runtime02.port=8109
+worker.runtime02.reference=worker.template
+
+# Define the LB worker
+
+worker.admincluster.type=lb
+worker.admincluster.balance_workers=admin01,admin02
+worker.status.type=status
+
+worker.runtimecluster.type=lb
+worker.runtimecluster.balance_workers=runtime01,runtime02
+worker.status.type=status
+
+
+
+뚫어야 하는 방화벽 포트
+
+
+45564 UDP
+4000,4001 tcp
+HTTP
+AJP
+
+UDP 클러스터
+<Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"
+
+              channelSendOptions="8">
+
+       <Manager className="org.apache.catalina.ha.session.DeltaManager"
+
+                     expireSessionsOnShutdown="false" notifyListenersOnReplication="true"/>
+
+       <Channel className="org.apache.catalina.tribes.group.GroupChannel">
+
+          <Membership className="org.apache.catalina.tribes.membership.McastService"
+
+                             address="228.0.0.4"
+
+                             port="45564"
+
+                             frequency="500"
+
+                             dropTime="3000"/>
+
+          <Receiver className="org.apache.catalina.tribes.transport.nio.NioReceiver"
+
+                        address="192.168.219.130"
+
+                        port="4000"
+
+                        autoBind="100"
+
+                        selectorTimeout="5000"
+
+                        maxThreads="6"/>
+
+          <Sender className="org.apache.catalina.tribes.transport.ReplicationTransmitter">
+
+              <Transport className="org.apache.catalina.tribes.transport.nio.PooledParallelSender"/>
+
+          </Sender>
+
+          <Interceptor className="org.apache.catalina.tribes.group.interceptors.TcpFailureDetector"/>
+
+          <Interceptor className="org.apache.catalina.tribes.group.interceptors.MessageDispatchInterceptor"/>
+
+          </Channel>
+
+        <Valve className="org.apache.catalina.ha.tcp.ReplicationValve" filter=""/>
+
+        <Valve className="org.apache.catalina.ha.session.JvmRouteBinderValve"/>
+
+        <Deployer className="org.apache.catalina.ha.deploy.FarmWarDeployer"
+
+                       tempDir="/tmp/war-temp/"
+
+                       deployDir="/tmp/war-deploy/"
+
+                       watchDir="/tmp/war-listen/"
+
+                       watchEnabled="false"/>
+
+         <ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
+
+</Cluster>
+
+
+
+
+TCP 클러스터
+<Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"
+         channelSendOptions="6" channelStartOptions="3">
+            <Manager className="org.apache.catalina.ha.session.BackupManager"
+              expireSessionsOnShutdown="false" notifyListenersOnReplication="true" />
+<Channel className="org.apache.catalina.tribes.group.GroupChannel">
+            <Receiver className="org.apache.catalina.tribes.transport.nio.NioReceiver"
+               autoBind="0" selectorTimeout="5000" maxThreads="6"
+               address="192.168.56.134"
+               port="4000" />
+         <Sender className="org.apache.catalina.tribes.transport.ReplicationTransmitter">
+            <Transport className="org.apache.catalina.tribes.transport.nio.PooledParallelSender"
+             timeout="60000" keepAliveTime="10" keepAliveCount="0"/>
+         </Sender>         <Interceptor className="org.apache.catalina.tribes.group.interceptors.TcpPingInterceptor" staticOnly="true"/>
+         <Interceptor className="org.apache.catalina.tribes.group.interceptors.TcpFailureDetector"/>
+         <Interceptor className="org.apache.catalina.tribes.group.interceptors.StaticMembershipInterceptor">
+            <Member className="org.apache.catalina.tribes.membership.StaticMember"
+               host="192.168.56.134"
+               port="4000"
+               uniqueId="{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9}"/>
+       <Member className="org.apache.catalina.tribes.membership.StaticMember"
+               host="192.168.56.112"
+               port="4000"
+               uniqueId="{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9}"/>         </Interceptor>
+        </Channel>
+            <Valve className="org.apache.catalina.ha.tcp.ReplicationValve" filter="" />
+            <Valve className="org.apache.catalina.ha.session.JvmRouteBinderValve" />
+        <ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
+     </Cluster>
+
+
+
+
+
+
+
